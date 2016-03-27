@@ -9,3 +9,4 @@ add_library(hwhal MODULE
   plugin.cpp
   )
 
+install(TARGETS hwhal LIBRARY DESTINATION /usr/lib/hwhal/)
