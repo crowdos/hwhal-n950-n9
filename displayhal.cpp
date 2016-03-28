@@ -29,7 +29,7 @@ void DisplayHal::blank(bool blank) {
     return;
   }
 
-  if (write(m_fd, &val, sizeof(val)) != sizeof(val)) {
+  if (write(m_fd, &val, sizeof(val)) <= 0) {
     std::cerr << "Failed to write to " << FB_BLANK_PATH << ": " << std::strerror(errno) << std::endl;
   }
 }
@@ -40,7 +40,7 @@ bool DisplayHal::isBlank() {
   }
 
   int val;
-  if (read(m_fd, &val, sizeof(val)) != sizeof(val)) {
+  if (read(m_fd, &val, sizeof(val)) == -1) {
     std::cerr << "Failed to read from " << FB_BLANK_PATH << ": " << std::strerror(errno) << std::endl;
     return true;
   }

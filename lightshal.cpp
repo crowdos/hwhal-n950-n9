@@ -42,7 +42,7 @@ void LightsHal::setBacklightBrightness(int brightness) {
     return;
   }
 
-  if (write(fd, &brightness, sizeof(brightness)) != sizeof(brightness)) {
+  if (write(fd, &brightness, sizeof(brightness)) <= 0) {
     std::cerr << "Failed to write to " << BRIGHTNESS_FILE << ": " << std::strerror(errno) << std::endl;
   }
 
@@ -58,7 +58,7 @@ int LightsHal::readFile(const char *file) {
   }
 
   int val = -1;
-  if (read(fd, &val, sizeof(val)) != sizeof(val)) {
+  if (read(fd, &val, sizeof(val)) == -1) {
     std::cerr << "Failed to read from " << file << ": " << std::strerror(errno) << std::endl;
   }
 
