@@ -6,6 +6,7 @@ add_library(hwhal MODULE
   displayhal.cpp
   infohal.cpp
   lightshal.cpp
+  sysfs.cpp
   plugin.cpp
   )
 

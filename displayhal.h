@@ -2,6 +2,7 @@
 #define DISPLAY_HAL_H
 
 #include <hwhal/display.h>
+#include "sysfs.h"
 
 class DisplayHal : public Display {
 public:
@@ -12,7 +13,8 @@ public:
   bool isBlank();
 
 private:
-  int m_fd;
+  Sysfs m_fd;
+  bool m_blank;
 };
 
 #endif /* DISPLAY_HAL_H */

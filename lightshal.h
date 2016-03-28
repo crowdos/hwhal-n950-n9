@@ -2,6 +2,7 @@
 #define LIGHTS_HAL_H
 
 #include <hwhal/lights.h>
+#include "sysfs.h"
 
 class LightsHal : public Lights {
 public:
@@ -14,8 +15,7 @@ public:
   void setBacklightBrightness(int brightness);
 
 private:
-  int readFile(const char *file);
-
+  Sysfs m_fd;
   int m_maxBrightness;
 };
 
