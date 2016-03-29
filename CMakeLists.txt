@@ -10,4 +10,5 @@ add_library(hwhal MODULE
   plugin.cpp
   )
 
+target_link_libraries(hwhal hwhal-keys-evdev)
 install(TARGETS hwhal LIBRARY DESTINATION /usr/lib/hwhal/)

@@ -1,5 +1,6 @@
 #include <hwhal/hwhal.h>
 #include <hwhal/control.h>
+#include <hwhal/keys-evdev.h>
 #include "infohal.h"
 #include "displayhal.h"
 #include "lightshal.h"
@@ -32,6 +33,10 @@ class HAL : public HwHal {
 
     case ControlId::Display:
       ctl = new DisplayHal;
+      break;
+
+    case ControlId::Keys:
+      ctl = new HwHalKeysEvdev;
       break;
 
     default:
