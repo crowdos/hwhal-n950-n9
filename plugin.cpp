@@ -4,6 +4,7 @@
 #include "infohal.h"
 #include "displayhal.h"
 #include "lightshal.h"
+#include "usbhal.h"
 #include <iostream>
 
 class HAL : public HwHal {
@@ -37,6 +38,10 @@ class HAL : public HwHal {
 
     case ControlId::Keys:
       ctl = new HwHalKeysEvdev;
+      break;
+
+    case ControlId::Usb:
+      ctl = new UsbHal;
       break;
 
     default:
