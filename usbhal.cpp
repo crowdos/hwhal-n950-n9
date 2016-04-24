@@ -94,6 +94,28 @@ void UsbHal::run() {
     return;
   }
 
+  // Enumerate:
+  udev_enumerate *enumerate = udev_enumerate_new(udev);
+  udev_enumerate_add_match_subsystem(enumerate, "power_supply");
+  udev_enumerate_scan_devices(enumerate);
+  struct udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
+  if (devices) {
+    struct udev_list_entry *dev_list_entry;
+    udev_list_entry_foreach(dev_list_entry, devices) {
+      const char *path = udev_list_entry_get_name(dev_list_entry);
+      struct udev_device *dev = udev_device_new_from_syspath(udev, path);
+
+      if (udev_device_get_sysname(dev) == std::string("usb") &&
+	  udev_device_get_action(dev) == std::string("change")) {
+	update(dev);
+      }
+
+      udev_device_unref(dev);
+    }
+  }
+
+  udev_enumerate_unref(enumerate);
+
   fd_set fds;
   struct timeval tv;
 
