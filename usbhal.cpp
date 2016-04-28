@@ -112,7 +112,6 @@ private:
   }
 
   void check(struct udev_device *dev, const std::function<void(bool)>& cb) {
-    // TODO: This logic is broken
     const char *power = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
     if (!power) {
       power = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
@@ -127,8 +126,27 @@ private:
     if (power != std::string("1")) {
       // Disconnected.
       cb(false);
-    } else {
+      return;
+    }
+
+    // We might have a charger or a cable:
+    power = udev_device_get_property_value(dev, "POWER_SUPPLY_TYPE");
+    if (!power) {
+      // OK. We cannot tell. Just assume we have nothing connected :/
+      cb(false);
+      return;
+    }
+
+    if (power == std::string("USB") || power == std::string("USB_CDP")) {
+      // We have a cable :-)
       cb(true);
+    } else if (power == std::string("USB_DCP")) {
+      // This is a charger:
+      cb(false);
+    } else {
+      // We have no idea what that is
+      cb(false);
+      std::cerr << "I don't know what is " << power << std::endl;
     }
   }
 
