@@ -5,6 +5,7 @@ Maintainer: Mohammed Sameer <msameer@foolab.org>
 Build-Depends: debhelper (>= 9),
                cmake,
                libhwhal-dev,
+	       pkg-config,
                libudev-dev
 Standards-Version: 3.9.6
 
