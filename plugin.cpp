@@ -20,7 +20,7 @@ class HAL : public HwHal {
     delete this;
   }
 
-  Control *get(const ControlId& id) {
+  Control *get(LoopIntegration *loop, const ControlId& id) {
     Control *ctl = nullptr;
 
     switch (id) {
@@ -41,7 +41,7 @@ class HAL : public HwHal {
       break;
 
     case ControlId::Usb:
-      ctl = new UsbHal;
+      ctl = new UsbHal(loop);
       break;
 
     default:

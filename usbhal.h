@@ -2,12 +2,13 @@
 #define USB_HAL_H
 
 #include <hwhal/usb.h>
-#include <thread>
-#include <mutex>
+
+class LoopIntegration;
+class UDev;
 
 class UsbHal : public Usb {
 public:
-  UsbHal();
+  UsbHal(LoopIntegration *loop);
   ~UsbHal();
 
   void addListener(std::function<void(bool)>& listener);
@@ -15,15 +16,15 @@ public:
   bool setMode(const Mode& mode);
 
 private:
-  void run();
-  void update(struct udev_device *dev);
+  void setup();
   void setCableConnected(bool connected);
 
-  int m_sv[2];
-  std::thread m_thread;
-  std::mutex m_lock;
-  bool m_connected = false;
+  UDev *m_udev;
+  LoopIntegration *m_loop;
+  bool m_connected;
   std::function<void(bool)> m_listener;
+  uint64_t m_id;
+  uint64_t m_postId;
 };
 
 #endif /* USB_HAL_H */

@@ -1,51 +1,170 @@
 #include "usbhal.h"
 #include <iostream>
 #include <libudev.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include <hwhal/loopintegration.h>
 
 #define SYSFS_FILE "/sys/class/power_supply/usb/uevent"
 
-UsbHal::UsbHal() {
-  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, m_sv) == -1) {
-    throw std::runtime_error("Failed to create sockets");
+class UDev {
+public:
+  UDev() :
+    m_fd(-1),
+    m_udev(nullptr),
+    m_mon(nullptr) {
+
+    m_udev = udev_new();
+    if (!m_udev) {
+      err("Failed to initialize udev");
+      return;
+    }
+
+    m_mon = udev_monitor_new_from_netlink(m_udev, "udev");
+    if (!m_mon) {
+      err("Failed to initialize udev monitor");
+      return;
+    }
+
+    if (udev_monitor_filter_add_match_subsystem_devtype(m_mon, "power_supply", NULL) < 0) {
+      err("Failed to add udev monitor match");
+      return;
+    }
+
+    if (udev_monitor_enable_receiving(m_mon) < 0) {
+      err("Failed to enable udev monitor");
+      return;
+    }
+
+    int fd = udev_monitor_get_fd(m_mon);
+    if (fd < 0) {
+      err("Failed to get udev monitor fd");
+      return;
+    }
+
+    m_fd = fd;
   }
 
-  try {
-    m_thread = std::thread(&UsbHal::run, this);
-  } catch (std::exception& ex) {
-    std::cerr << "Failed to start USB monitoring thread: " << ex.what() << std::endl;
-    throw;
+  ~UDev() {
+    if (m_mon) {
+      udev_monitor_unref(m_mon);
+      m_mon = nullptr;
+    }
+
+    if (m_udev) {
+      udev_unref(m_udev);
+      m_udev = nullptr;
+    }
   }
+
+  void enumerate(const std::function<void(bool)>& cb) {
+    if (!m_udev) {
+      return;
+    }
+
+    udev_enumerate *enumerate = udev_enumerate_new(m_udev);
+    udev_enumerate_add_match_subsystem(enumerate, "power_supply");
+    udev_enumerate_scan_devices(enumerate);
+    struct udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
+    if (devices) {
+      struct udev_list_entry *dev_list_entry;
+      udev_list_entry_foreach(dev_list_entry, devices) {
+	const char *path = udev_list_entry_get_name(dev_list_entry);
+	struct udev_device *dev = udev_device_new_from_syspath(m_udev, path);
+
+	if (udev_device_get_sysname(dev) == std::string("usb") &&
+	    udev_device_get_action(dev) == std::string("change")) {
+	  check(dev, cb);
+	}
+
+	udev_device_unref(dev);
+      }
+    }
+
+    udev_enumerate_unref(enumerate);
+  }
+
+  void tick(const std::function<void(bool)>& cb) {
+    struct udev_device *dev = udev_monitor_receive_device(m_mon);
+    if (!dev) {
+      return;
+    }
+
+    if (udev_device_get_sysname(dev) != std::string("usb")) {
+      udev_device_unref(dev);
+      return;
+    }
+
+    if (udev_device_get_action(dev) != std::string("change")) {
+      udev_device_unref(dev);
+      return;
+    }
+
+    check(dev, cb);
+    udev_device_unref(dev);
+  }
+
+  int fd() {
+    return m_fd;
+  }
+
+private:
+  void err(const std::string& msg) {
+    std::cerr << msg << std::endl;
+  }
+
+  void check(struct udev_device *dev, const std::function<void(bool)>& cb) {
+    // TODO: This logic is broken
+    const char *power = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
+    if (!power) {
+      power = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
+    }
+
+    if (!power) {
+      std::cerr << "Cannot find power supply indicator" << std::endl;
+      cb(false);
+      return;
+    }
+
+    if (power != std::string("1")) {
+      // Disconnected.
+      cb(false);
+    } else {
+      cb(true);
+    }
+  }
+
+  int m_fd;
+  struct udev *m_udev;
+  struct udev_monitor *m_mon;
+};
+
+UsbHal::UsbHal(LoopIntegration *loop) :
+  m_udev(nullptr),
+  m_loop(loop),
+  m_connected(false),
+  m_id(0),
+  m_postId(0) {
+
+  setup();
 }
 
 UsbHal::~UsbHal() {
-  char c = 'c';
-  write(m_sv[0], &c, 1);
-
-  try {
-    m_thread.join();
-  } catch (...) {
-    // Nothing
-  }
-
-  close(m_sv[0]);
-  close(m_sv[1]);
+  m_loop->clear(m_postId);
+  m_loop->removeFileDescriptor(m_id);
+  delete m_udev;
+  m_udev = nullptr;
 }
 
 void UsbHal::addListener(std::function<void(bool)>& listener) {
-  std::lock_guard<std::mutex> lock(m_lock);
   m_listener = listener;
 }
 
 bool UsbHal::isCableConnected() {
-  std::lock_guard<std::mutex> lock(m_lock);
   return m_connected;
 }
 
 bool UsbHal::setMode(const Mode& mode) {
   // TODO: we ignore mode for now
+#if 0
   int ret = system("/sbin/modprobe -q g_ether");
   if (ret == -1) {
     return false;
@@ -56,129 +175,12 @@ bool UsbHal::setMode(const Mode& mode) {
   }
 
   return false;
-}
+#endif
 
-void UsbHal::run() {
-  struct udev *udev = udev_new();
-  if(!udev) {
-    throw std::runtime_error("Failed to initialize udev");
-    return;
-  }
-
-  struct udev_monitor *mon = udev_monitor_new_from_netlink(udev, "udev");
-  if (!mon) {
-    udev_unref(udev);
-    throw std::runtime_error("Failed to initialize udev monitor");
-    return;
-  }
-
-  if (udev_monitor_filter_add_match_subsystem_devtype(mon, "power_supply", NULL) < 0) {
-    udev_monitor_unref(mon);
-    udev_unref(udev);
-    throw std::runtime_error("Failed to add udev monitor match");
-    return;
-  }
-
-  if (udev_monitor_enable_receiving(mon) < 0) {
-    udev_monitor_unref(mon);
-    udev_unref(udev);
-    throw std::runtime_error("Failed to enable udev monitor");
-    return;
-  }
-
-  int fd = udev_monitor_get_fd(mon);
-  if (fd < 0) {
-    udev_monitor_unref(mon);
-    udev_unref(udev);
-    throw std::runtime_error("Failed to get udev monitor fd");
-    return;
-  }
-
-  // Enumerate:
-  udev_enumerate *enumerate = udev_enumerate_new(udev);
-  udev_enumerate_add_match_subsystem(enumerate, "power_supply");
-  udev_enumerate_scan_devices(enumerate);
-  struct udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
-  if (devices) {
-    struct udev_list_entry *dev_list_entry;
-    udev_list_entry_foreach(dev_list_entry, devices) {
-      const char *path = udev_list_entry_get_name(dev_list_entry);
-      struct udev_device *dev = udev_device_new_from_syspath(udev, path);
-
-      if (udev_device_get_sysname(dev) == std::string("usb") &&
-	  udev_device_get_action(dev) == std::string("change")) {
-	update(dev);
-      }
-
-      udev_device_unref(dev);
-    }
-  }
-
-  udev_enumerate_unref(enumerate);
-
-  fd_set fds;
-  struct timeval tv;
-
-  while (true) {
-    FD_ZERO(&fds);
-    FD_SET(fd, &fds);
-    FD_SET(m_sv[1], &fds);
-
-    if (select((fd > m_sv[1] ? fd : m_sv[1]) + 1, &fds, NULL, NULL, NULL) > 0) {
-      if (FD_ISSET(fd, &fds)) {
-	struct udev_device *dev = udev_monitor_receive_device(mon);
-	if (!dev) {
-	  continue;
-	}
-
-	if (udev_device_get_sysname(dev) != std::string("usb")) {
-	  udev_device_unref(dev);
-	  continue;
-	}
-
-	if (udev_device_get_action(dev) != std::string("change")) {
-	  udev_device_unref(dev);
-	  continue;
-	}
-
-	update(dev);
-	udev_device_unref(dev);
-      } else {
-	goto out;
-      }
-    }
-  }
-
-
-out:
-  close(fd); // TODO: is this correct?
-  udev_monitor_unref(mon);
-  udev_unref(udev);
-}
-
-void UsbHal::update(struct udev_device *dev) {
-  const char *power = udev_device_get_property_value(dev, "POWER_SUPPLY_PRESENT");
-  if (!power) {
-    power = udev_device_get_property_value(dev, "POWER_SUPPLY_ONLINE");
-  }
-
-  if (!power) {
-    std::cerr << "Cannot find power supply indicator" << std::endl;
-    setCableConnected(false);
-    return;
-  }
-
-  if (power != std::string("1")) {
-    // Disconnected.
-    setCableConnected(false);
-  } else {
-    setCableConnected(true);
-  }
+  return false;
 }
 
 void UsbHal::setCableConnected(bool connected) {
-  std::lock_guard<std::mutex> lock(m_lock);
-
   if (m_connected != connected) {
     m_connected = connected;
 
@@ -186,4 +188,28 @@ void UsbHal::setCableConnected(bool connected) {
       m_listener(m_connected);
     }
   }
+}
+
+void UsbHal::setup() {
+  m_postId = 0;
+  m_udev = new UDev;
+
+  int fd = m_udev->fd();
+  if (fd < 0) {
+    throw std::runtime_error("Failed to initialize udev");
+  }
+
+  m_udev->enumerate([this](bool connected) {setCableConnected(connected); });
+
+  m_id = m_loop->addFileDescriptor(fd, [this](bool ok) {
+      if (!ok) {
+	delete m_udev;
+	m_udev = nullptr;
+	m_id = 0;
+	m_postId = m_loop->post([this](){setup();});
+	return;
+      }
+
+      m_udev->tick([this](bool connected) {setCableConnected(connected); });
+    });
 }
