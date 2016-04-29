@@ -12,7 +12,8 @@ class HAL : public HwHal {
     return HWHAL_VERSION_CURRENT;
   }
 
-  bool init() {
+  bool init(LoopIntegration *loop) {
+    m_loop = loop;
     return true;
   }
 
@@ -20,7 +21,7 @@ class HAL : public HwHal {
     delete this;
   }
 
-  Control *get(LoopIntegration *loop, const ControlId& id) {
+  Control *get(const ControlId& id) {
     Control *ctl = nullptr;
 
     switch (id) {
@@ -41,7 +42,7 @@ class HAL : public HwHal {
       break;
 
     case ControlId::Usb:
-      ctl = new UsbHal(loop);
+      ctl = new UsbHal(m_loop);
       break;
 
     default:
@@ -56,6 +57,8 @@ class HAL : public HwHal {
   void put(Control *control) {
     control->destroy();
   }
+
+  LoopIntegration *m_loop;
 };
 
 extern "C" {

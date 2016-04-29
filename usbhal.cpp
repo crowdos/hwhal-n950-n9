@@ -1,7 +1,6 @@
 #include "usbhal.h"
 #include <iostream>
 #include <libudev.h>
-#include <hwhal/loopintegration.h>
 
 #define SYSFS_FILE "/sys/class/power_supply/usb/uevent"
 
@@ -158,16 +157,20 @@ private:
 UsbHal::UsbHal(LoopIntegration *loop) :
   m_udev(nullptr),
   m_loop(loop),
-  m_connected(false),
-  m_id(0),
-  m_postId(0) {
+  m_connected(false) {
 
   setup();
 }
 
 UsbHal::~UsbHal() {
-  m_loop->clear(m_postId);
-  m_loop->removeFileDescriptor(m_id);
+  if (m_fd) {
+    m_fd->stop();
+  }
+
+  if (m_timer) {
+    m_timer->stop();
+  }
+
   delete m_udev;
   m_udev = nullptr;
 }
@@ -209,7 +212,8 @@ void UsbHal::setCableConnected(bool connected) {
 }
 
 void UsbHal::setup() {
-  m_postId = 0;
+  m_timer.reset();
+
   m_udev = new UDev;
 
   int fd = m_udev->fd();
@@ -219,15 +223,15 @@ void UsbHal::setup() {
 
   m_udev->enumerate([this](bool connected) {setCableConnected(connected); });
 
-  m_id = m_loop->addFileDescriptor(fd, [this](bool ok) {
+  m_fd = m_loop->addFileDescriptor([this](bool ok) {
       if (!ok) {
 	delete m_udev;
 	m_udev = nullptr;
-	m_id = 0;
-	m_postId = m_loop->post([this](){setup();});
+	m_fd.reset(nullptr);
+	m_timer = m_loop->post([this](){setup();}, 1000 /* ms */);
 	return;
       }
 
       m_udev->tick([this](bool connected) {setCableConnected(connected); });
-    });
+    }, fd);
 }

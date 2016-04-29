@@ -2,8 +2,8 @@
 #define USB_HAL_H
 
 #include <hwhal/usb.h>
+#include <hwhal/loopintegration.h>
 
-class LoopIntegration;
 class UDev;
 
 class UsbHal : public Usb {
@@ -23,8 +23,8 @@ private:
   LoopIntegration *m_loop;
   bool m_connected;
   std::function<void(bool)> m_listener;
-  uint64_t m_id;
-  uint64_t m_postId;
+  std::unique_ptr<LoopIntegration::FdWatcher> m_fd;
+  std::unique_ptr<LoopIntegration::Timer> m_timer;
 };
 
 #endif /* USB_HAL_H */
