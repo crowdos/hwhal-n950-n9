@@ -175,7 +175,7 @@ UsbHal::~UsbHal() {
   m_udev = nullptr;
 }
 
-void UsbHal::addListener(std::function<void(bool)>& listener) {
+void UsbHal::addListener(const std::function<void(bool)>& listener) {
   m_listener = listener;
 }
 

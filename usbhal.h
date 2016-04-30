@@ -11,7 +11,7 @@ public:
   UsbHal(LoopIntegration *loop);
   ~UsbHal();
 
-  void addListener(std::function<void(bool)>& listener);
+  void addListener(const std::function<void(bool)>& listener);
   bool isCableConnected();
   bool setMode(const Mode& mode);
 
