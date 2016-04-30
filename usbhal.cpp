@@ -167,10 +167,12 @@ UsbHal::UsbHal(LoopIntegration *loop) :
 UsbHal::~UsbHal() {
   if (m_fd) {
     m_fd->stop();
+    m_fd.reset();
   }
 
   if (m_timer) {
     m_timer->stop();
+    m_timer.reset();
   }
 
   delete m_udev;
@@ -214,7 +216,10 @@ void UsbHal::setCableConnected(bool connected) {
 }
 
 void UsbHal::setup() {
-  m_timer.reset();
+  if (m_timer) {
+    m_timer->stop();
+    m_timer.reset();
+  }
 
   m_udev = new UDev;
 
@@ -229,6 +234,7 @@ void UsbHal::setup() {
       if (!ok) {
 	delete m_udev;
 	m_udev = nullptr;
+	m_fd->stop();
 	m_fd.reset(nullptr);
 	m_timer = m_loop->post([this](){setup();}, 1000 /* ms */);
 	return;
