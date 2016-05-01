@@ -69,10 +69,8 @@ public:
 	const char *path = udev_list_entry_get_name(dev_list_entry);
 	struct udev_device *dev = udev_device_new_from_syspath(m_udev, path);
 	const char *sysname = udev_device_get_sysname(dev);
-	const char *action = udev_device_get_action(dev);
 
-	if (sysname && sysname == std::string("usb") &&
-	    action && action == std::string("change")) {
+	if (sysname && sysname == std::string("usb")) {
 	  check(dev, cb);
 	}
 
