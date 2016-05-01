@@ -159,20 +159,22 @@ private:
 UsbHal::UsbHal(LoopIntegration *loop) :
   m_udev(nullptr),
   m_loop(loop),
-  m_connected(false) {
+  m_connected(false),
+  m_fd(0),
+  m_timer(0) {
 
   setup();
 }
 
 UsbHal::~UsbHal() {
-  if (m_fd) {
-    m_fd->stop();
-    m_fd.reset();
+  if (m_fd > 0) {
+    m_loop->cancel(m_fd);
+    m_fd = 0;
   }
 
-  if (m_timer) {
-    m_timer->stop();
-    m_timer.reset();
+  if (m_timer > 0) {
+    m_loop->cancel(m_timer);
+    m_timer = 0;
   }
 
   delete m_udev;
@@ -216,9 +218,14 @@ void UsbHal::setCableConnected(bool connected) {
 }
 
 void UsbHal::setup() {
-  if (m_timer) {
-    m_timer->stop();
-    m_timer.reset();
+  if (m_timer > 0) {
+    m_loop->cancel(m_timer);
+    m_timer = 0;
+  }
+
+  if (m_fd > 0) {
+    m_loop->cancel(m_fd);
+    m_fd = 0;
   }
 
   m_udev = new UDev;
@@ -230,16 +237,14 @@ void UsbHal::setup() {
 
   m_udev->enumerate([this](bool connected) {setCableConnected(connected); });
 
-  m_fd = m_loop->addFileDescriptor([this](bool ok) {
+  m_fd = m_loop->addFileDescriptor(fd, [this](bool ok) {
       if (!ok) {
 	delete m_udev;
 	m_udev = nullptr;
-	m_fd->stop();
-	m_fd.reset(nullptr);
-	m_timer = m_loop->post([this](){setup();}, 1000 /* ms */);
+	m_timer = m_loop->post(1000 /* ms */, [this](){setup();});
 	return;
       }
 
       m_udev->tick([this](bool connected) {setCableConnected(connected); });
-    }, fd);
+    });
 }

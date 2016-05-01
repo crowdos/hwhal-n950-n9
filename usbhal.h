@@ -23,8 +23,8 @@ private:
   LoopIntegration *m_loop;
   bool m_connected;
   std::function<void(bool)> m_listener;
-  std::unique_ptr<LoopIntegration::FdWatcher> m_fd;
-  std::unique_ptr<LoopIntegration::Timer> m_timer;
+  uint64_t m_fd;
+  uint64_t m_timer;
 };
 
 #endif /* USB_HAL_H */
