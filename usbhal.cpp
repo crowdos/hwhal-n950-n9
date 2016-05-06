@@ -187,7 +187,7 @@ bool UsbHal::isCableConnected() {
   return m_connected;
 }
 
-bool UsbHal::setMode(const Mode& mode) {
+bool UsbHal::setMode(const Mode& /*mode*/) {
   // TODO: we ignore mode for now
 #if 0
   int ret = system("/sbin/modprobe -q g_ether");

@@ -72,7 +72,8 @@ bool Sysfs::write(const std::string& str) {
     return false;
   }
 
-  if (::write(m_fd, str.c_str(), str.size()) != str.size()) {
+  size_t s = ::write(m_fd, str.c_str(), str.size());
+  if (s != str.size()) {
     std::cerr << "Failed to write: " << std::strerror(errno) << std::endl;
     return false;
   }
