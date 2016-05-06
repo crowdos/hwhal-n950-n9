@@ -38,7 +38,7 @@ class HAL : public HwHal {
       break;
 
     case ControlId::Keys:
-      ctl = new HwHalKeysEvdev;
+      ctl = new HwHalKeysEvdev(m_loop);
       break;
 
     case ControlId::Usb:
