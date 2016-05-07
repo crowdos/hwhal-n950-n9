@@ -14,6 +14,7 @@ add_library(hwhal MODULE
   infohal.cpp
   lightshal.cpp
   usbhal.cpp
+  sensorshal.cpp
   sysfs.cpp
   plugin.cpp
   )

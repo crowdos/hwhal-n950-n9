@@ -5,6 +5,7 @@
 #include "displayhal.h"
 #include "lightshal.h"
 #include "usbhal.h"
+#include "sensorshal.h"
 #include <iostream>
 
 class HAL : public HwHal {
@@ -43,6 +44,10 @@ class HAL : public HwHal {
 
     case ControlId::Usb:
       ctl = new UsbHal(m_loop);
+      break;
+
+    case ControlId::Sensors:
+      ctl = new SensorsHal(m_loop);
       break;
 
     default:
