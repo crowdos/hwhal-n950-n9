@@ -1,6 +1,7 @@
 #include "usbhal.h"
 #include <iostream>
 #include <libudev.h>
+#include <hwhal/loopintegration.h>
 
 #define SYSFS_FILE "/sys/class/power_supply/usb/uevent"
 

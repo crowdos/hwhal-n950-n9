@@ -2,9 +2,9 @@
 #define USB_HAL_H
 
 #include <hwhal/usb.h>
-#include <hwhal/loopintegration.h>
 
 class UDev;
+class LoopIntegration;
 
 class UsbHal : public Usb {
 public:
