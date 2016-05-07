@@ -14,7 +14,7 @@ public:
   ~SensorsHal();
 
   bool hasSensor(const Sensor& sensor);
-  bool monitor(const Sensor& sensor, const std::function<void(const std::vector<int>&)>& listener);
+  bool monitor(const Sensor& sensor, const std::function<void(const Sensors::Reading&)>& listener);
 
 private:
   LoopIntegration *m_loop;

@@ -31,7 +31,7 @@ public:
 
 class Accelerometer : public SensorsHal::SensorHal {
 public:
-  Accelerometer(LoopIntegration *loop, const std::function<void(const std::vector<int>&)>& cb) :
+  Accelerometer(LoopIntegration *loop, const std::function<void(const Sensors::Reading&)>& cb) :
     m_id(0),
     m_loop(loop),
     m_cb(cb) {
@@ -76,7 +76,7 @@ public:
 	    s.erase(s.size() -1 , 1);
 	  }
 
-	  std::vector<int> data;
+	  Sensors::Reading r;
 	  std::istringstream ss(s);
 	  for (int x = 0; x < 3; x++) {
 	    std::string n;
@@ -85,10 +85,11 @@ public:
 	      return;
 	    }
 
-	    data.push_back(std::stoi(n));
+	    r.data[x] = std::stof(n);
 	  }
 
-	  m_cb(data);
+	  r.valid = Sensors::Valid;
+	  m_cb(r);
 	} catch (...) {
 	  // Nothing:
 	}
@@ -107,12 +108,12 @@ private:
   Sysfs m_file;
   uint64_t m_id;
   LoopIntegration *m_loop;
-  const std::function<void(const std::vector<int>&)> m_cb;
+  const std::function<void(const Sensors::Reading&)> m_cb;
 };
 
 class Magnetometer : public SensorsHal::SensorHal {
 public:
-  Magnetometer(LoopIntegration *loop, const std::function<void(const std::vector<int>&)>& cb) :
+  Magnetometer(LoopIntegration *loop, const std::function<void(const Sensors::Reading&)>& cb) :
     m_fd(-1),
     m_id(0),
     m_loop(loop),
@@ -135,12 +136,12 @@ public:
 	if (ok) {
 	  struct ak8975_data data;
 	  if (read(m_fd, &data, sizeof(data)) == sizeof(data)) {
-	    std::vector<int> d;
-	    d.push_back(data.x);
-	    d.push_back(data.y);
-	    d.push_back(data.z);
-	    d.push_back(data.valid);
-	    m_cb(d);
+	    Sensors::Reading r;
+	    r.data[0] = data.x;
+	    r.data[1] = data.y;
+	    r.data[2] = data.z;
+	    r.valid = data.valid == 1 ? Sensors::Valid : Sensors::Invalid;
+	    m_cb(r);
 	  }
 	} else {
 	  stop();
@@ -162,7 +163,7 @@ private:
   int m_fd;
   uint64_t m_id;
   LoopIntegration *m_loop;
-  const std::function<void(const std::vector<int>&)> m_cb;
+  const std::function<void(const Sensors::Reading&)> m_cb;
 };
 
 SensorsHal::SensorsHal(LoopIntegration *loop) :
@@ -197,7 +198,7 @@ bool SensorsHal::hasSensor(const Sensor& sensor) {
 }
 
 bool SensorsHal::monitor(const Sensor& sensor,
-			 const std::function<void(const std::vector<int>&)>& listener) {
+			 const std::function<void(const Sensors::Reading&)>& listener) {
   if (!hasSensor(sensor)) {
     return false;
   }
