@@ -2,11 +2,24 @@
 #include "sysfs.h"
 #include <hwhal/loopintegration.h>
 #include <sstream>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <asm/types.h>
 
 #define ACCELEROMETER_PATH_POLL "/sys/devices/platform/lis3lv02d/position"
 #define ACCELEROMETER_PATH_RATE "/sys/devices/platform/lis3lv02d/rate"
 #define ACCELEROMETER_RATE      100
 #define ACCELEROMETER_MS        1000/ACCELEROMETER_RATE
+#define MAGNETOMETER_PATH       "/dev/ak89750"
+
+struct ak8975_data {
+  __s16 x;
+  __s16 y;
+  __s16 z;
+  __u16 valid;
+} __attribute__((packed));
 
 class SensorsHal::SensorHal {
 public:
@@ -97,6 +110,61 @@ private:
   const std::function<void(const std::vector<int>&)> m_cb;
 };
 
+class Magnetometer : public SensorsHal::SensorHal {
+public:
+  Magnetometer(LoopIntegration *loop, const std::function<void(const std::vector<int>&)>& cb) :
+    m_fd(-1),
+    m_id(0),
+    m_loop(loop),
+    m_cb(cb) {
+
+  }
+
+  ~Magnetometer() {
+    stop();
+    m_loop = nullptr;
+  }
+
+  bool start() {
+    m_fd = open(MAGNETOMETER_PATH, O_RDONLY);
+    if (m_fd == -1) {
+      return false;
+    }
+
+    m_id = m_loop->addFileDescriptor(m_fd, [this](bool ok) {
+	if (ok) {
+	  struct ak8975_data data;
+	  if (read(m_fd, &data, sizeof(data)) == sizeof(data)) {
+	    std::vector<int> d;
+	    d.push_back(data.x);
+	    d.push_back(data.y);
+	    d.push_back(data.z);
+	    d.push_back(data.valid);
+	    m_cb(d);
+	  }
+	} else {
+	  stop();
+	  start();
+	}
+      });
+
+    return true;
+  }
+
+  void stop() {
+    m_loop->cancel(m_id);
+    m_id = 0;
+    close(m_fd);
+    m_fd = -1;
+  }
+
+private:
+  int m_fd;
+  uint64_t m_id;
+  LoopIntegration *m_loop;
+  const std::function<void(const std::vector<int>&)> m_cb;
+};
+
 SensorsHal::SensorsHal(LoopIntegration *loop) :
   m_loop(loop) {
 
@@ -115,11 +183,12 @@ SensorsHal::~SensorsHal() {
 bool SensorsHal::hasSensor(const Sensor& sensor) {
   switch (sensor) {
   case Accelerometer:
+  case Magnetometer:
     return true;
 
     // TODO: support these
   case Proximity:
-  case Magnetometer:
+
   case AmbientLight:
     return false;
   }
@@ -156,6 +225,7 @@ bool SensorsHal::monitor(const Sensor& sensor,
 
     break;
   case Magnetometer:
+    s = new ::Magnetometer(m_loop, listener);
     break;
 
   case Accelerometer:
