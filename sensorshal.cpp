@@ -57,7 +57,7 @@ public:
 
     rate.close();
 
-    if (!m_file.open(ACCELEROMETER_PATH_POLL, true)) {
+    if (!m_file.open(ACCELEROMETER_PATH_POLL, false)) {
       return false;
     }
 
