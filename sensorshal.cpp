@@ -134,12 +134,21 @@ public:
   }
 
   bool start() {
-    m_fd = open(MAGNETOMETER_PATH, O_RDONLY | O_NONBLOCK);
+    m_fd = open(MAGNETOMETER_PATH, O_RDONLY);
     if (m_fd == -1) {
       return false;
     }
 
+    // Hoping we won't wait a lot before we get the first reading.
     read();
+
+    // Now we switch to non blocking IO:
+    int flags = fcntl(m_fd, F_GETFL, 0);
+    if (flags == -1) {
+      flags = 0;
+    }
+
+    fcntl(m_fd, F_SETFL, flags | O_NONBLOCK);
 
     m_id = m_loop->post(MAGNETOMETER_MS, [this]() {
 	read();
