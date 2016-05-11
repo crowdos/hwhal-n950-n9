@@ -68,7 +68,7 @@ public:
 	read();
       });
 
-    return true;
+    return m_id > 0;
   }
 
   void stop() {
