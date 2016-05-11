@@ -13,6 +13,7 @@
 #define ACCELEROMETER_RATE      100
 #define ACCELEROMETER_MS        1000/ACCELEROMETER_RATE
 #define MAGNETOMETER_PATH       "/dev/ak89750"
+#define MAGNETOMETER_MS         33
 
 struct ak8975_data {
   __s16 x;
@@ -133,20 +134,15 @@ public:
   }
 
   bool start() {
-    m_fd = open(MAGNETOMETER_PATH, O_RDONLY);
+    m_fd = open(MAGNETOMETER_PATH, O_RDONLY | O_NONBLOCK);
     if (m_fd == -1) {
       return false;
     }
 
     read();
 
-    m_id = m_loop->addFileDescriptor(m_fd, [this](bool ok) {
-	if (ok) {
-	  read();
-	} else {
-	  stop();
-	  start();
-	}
+    m_id = m_loop->post(MAGNETOMETER_MS, [this]() {
+	read();
       });
 
     return m_id > 0;
