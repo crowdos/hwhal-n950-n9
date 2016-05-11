@@ -61,38 +61,10 @@ public:
       return false;
     }
 
+    read();
+
     m_id = m_loop->post(ACCELEROMETER_MS, [this]() {
-	try {
-	  std::string s;
-	  if (!m_file.read(s)) {
-	    return;
-	  }
-
-	  while (s.front() == '(') {
-	    s.erase(0, 1);
-	  }
-
-	  while (s.back() == ')') {
-	    s.erase(s.size() -1 , 1);
-	  }
-
-	  Sensors::Reading r;
-	  std::istringstream ss(s);
-	  for (int x = 0; x < 3; x++) {
-	    std::string n;
-	    std::getline(ss, n, ',');
-	    if (n.empty()) {
-	      return;
-	    }
-
-	    r.data[x] = std::stof(n);
-	  }
-
-	  r.valid = Sensors::Valid;
-	  m_cb(r);
-	} catch (...) {
-	  // Nothing:
-	}
+	read();
       });
 
     return true;
@@ -105,6 +77,40 @@ public:
   }
 
 private:
+  void read() {
+    try {
+      std::string s;
+      if (!m_file.read(s)) {
+	return;
+      }
+
+      while (s.front() == '(') {
+	s.erase(0, 1);
+      }
+
+      while (s.back() == ')') {
+	s.erase(s.size() -1 , 1);
+      }
+
+      Sensors::Reading r;
+      std::istringstream ss(s);
+      for (int x = 0; x < 3; x++) {
+	std::string n;
+	std::getline(ss, n, ',');
+	if (n.empty()) {
+	  return;
+	}
+
+	r.data[x] = std::stof(n);
+      }
+
+      r.valid = Sensors::Valid;
+      m_cb(r);
+    } catch (...) {
+      // Nothing:
+    }
+  }
+
   Sysfs m_file;
   uint64_t m_id;
   LoopIntegration *m_loop;
@@ -132,17 +138,11 @@ public:
       return false;
     }
 
+    read();
+
     m_id = m_loop->addFileDescriptor(m_fd, [this](bool ok) {
 	if (ok) {
-	  struct ak8975_data data;
-	  if (read(m_fd, &data, sizeof(data)) == sizeof(data)) {
-	    Sensors::Reading r;
-	    r.data[0] = data.x;
-	    r.data[1] = data.y;
-	    r.data[2] = data.z;
-	    r.valid = data.valid == 1 ? Sensors::Valid : Sensors::Invalid;
-	    m_cb(r);
-	  }
+	  read();
 	} else {
 	  stop();
 	  start();
@@ -160,6 +160,18 @@ public:
   }
 
 private:
+  void read() {
+    struct ak8975_data data;
+    if (::read(m_fd, &data, sizeof(data)) == sizeof(data)) {
+      Sensors::Reading r;
+      r.data[0] = data.x;
+      r.data[1] = data.y;
+      r.data[2] = data.z;
+      r.valid = data.valid == 1 ? Sensors::Valid : Sensors::Invalid;
+      m_cb(r);
+    }
+  }
+
   int m_fd;
   uint64_t m_id;
   LoopIntegration *m_loop;
